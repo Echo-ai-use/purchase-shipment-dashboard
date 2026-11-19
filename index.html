@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>采购单发货跟踪看板</title>
+<style>
+:root{--bg:#050d1a;--panel:#0a1626;--panel2:#0e1d33;--line:#16304f;--cyan:#22d3ee;--text:#dbe9f7;--dim:#7f9ab5;--red:#f87171;--green:#34d399;--amber:#fbbf24}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;padding:20px}
+h1{font-size:21px;font-weight:600;letter-spacing:.5px}
+.sub{color:var(--dim);font-size:12px;margin-top:5px}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.btn-add{background:linear-gradient(135deg,#22d3ee,#0ea5b7);color:#04121f;border:none;border-radius:10px;padding:12px 22px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:0 4px 20px rgba(34,211,238,.25)}
+.btn-add:hover{filter:brightness(1.1)}
+.btn-link{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:12px 18px;font-size:13px;cursor:pointer;text-decoration:none;display:inline-block;white-space:nowrap}
+.stats{display:flex;gap:14px;flex-wrap:wrap;margin:18px 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 24px;min-width:150px}
+.stat .v{font-size:28px;font-weight:700}
+.stat .l{color:var(--dim);font-size:12px;margin-top:2px}
+.v.cyan{color:var(--cyan)} .v.red{color:var(--red)} .v.green{color:var(--green)} .v.amber{color:var(--amber)}
+.bar{display:flex;gap:10px;margin:6px 0 14px;flex-wrap:wrap;align-items:center}
+.bar input{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 12px;font-size:13px;outline:none;min-width:280px}
+.bar input:focus{border-color:var(--cyan)}
+.btn{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer}
+.btn.active{border-color:var(--cyan);color:var(--cyan)}
+table{width:100%;border-collapse:collapse;background:var(--panel)}
+th{position:sticky;top:0;background:var(--panel2);color:var(--dim);font-size:12px;text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 12px;border-bottom:1px solid #0e2338;font-size:13px;vertical-align:top}
+tr.uns td{background:rgba(248,113,113,.06)}
+tr:hover td{background:rgba(34,211,238,.05)}
+.tag{display:inline-block;padding:3px 10px;border-radius:99px;font-size:12px;white-space:nowrap}
+.tag.uns{background:rgba(248,113,113,.15);color:var(--red)}
+.tag.shp{background:rgba(52,211,153,.15);color:var(--green)}
+.tag.nf{background:rgba(251,191,36,.15);color:var(--amber)}
+.mono{font-family:ui-monospace,Menlo,monospace}
+.dim{color:var(--dim)}
+.sales{color:var(--cyan);font-weight:600}
+.count{color:var(--dim);font-size:12px;margin:8px 2px}
+.scroll{max-height:calc(100vh - 250px);overflow:auto;border-radius:12px;border:1px solid var(--line)}
+.empty{text-align:center;padding:60px 20px;color:var(--dim)}
+.empty .big{font-size:40px;margin-bottom:12px}
+.hint{background:rgba(34,211,238,.06);border:1px solid rgba(34,211,238,.25);border-radius:10px;padding:12px 16px;margin:14px 0;font-size:13px;color:var(--text)}
+.hint b{color:var(--cyan)}
+</style>
+</head>
+<body>
+<div class="head">
+  <div>
+    <h1>📦 采购单发货跟踪看板</h1>
+    <div class="sub">只跟踪手动登记的单 ｜ 巡检时间：<span id="ft"></span> ｜ 数据源：马帮ERP（只读）+ 飞书清单</div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <a class="btn-add" id="btnTable" target="_blank">➕ 登记采购单</a>
+    <a class="btn-link" id="btnForm" target="_blank">📝 表单登记</a>
+  </div>
+</div>
+
+<div class="hint">💡 在「<b>登记采购单</b>」在线表里直接填 <b>采购单号 + 对应销售</b> 两列即可加入跟踪；系统每 3 小时自动查询发货状态并回填，<b>未发货的会推送卡片到永瘦宫群</b>提醒。</div>
+
+<div class="stats">
+  <div class="stat"><div class="v cyan" id="s-total"></div><div class="l">已登记跟踪</div></div>
+  <div class="stat"><div class="v red" id="s-uns"></div><div class="l">未发货（每3小时提醒）</div></div>
+  <div class="stat"><div class="v green" id="s-shp"></div><div class="l">已发货</div></div>
+  <div class="stat"><div class="v amber" id="s-nf"></div><div class="l">单号未找到</div></div>
+  <div class="stat"><div class="v cyan" id="s-sales"></div><div class="l">涉及销售</div></div>
+</div>
+
+<div class="bar">
+  <input id="q" placeholder="搜索单号 / 销售 / 供应商 / 1688单号 / SKU…">
+  <button class="btn active" data-f="all">全部</button>
+  <button class="btn" data-f="未发货">未发货</button>
+  <button class="btn" data-f="已发货">已发货</button>
+  <button class="btn" data-f="未找到">未找到</button>
+</div>
+<div class="count" id="cnt"></div>
+<div class="scroll">
+<table>
+<thead><tr><th>状态</th><th>对应销售</th><th>采购单号</th><th>供应商</th><th>1688 单号</th><th>金额(¥)</th><th>仓库</th><th>商品</th><th>建单时间</th><th>快递单号</th></tr></thead>
+<tbody id="tb"></tbody>
+</table>
+<div class="empty" id="empty" style="display:none"><div class="big">📭</div>还没有登记采购单<br><br><a class="btn-add" id="btnTable2" target="_blank">➕ 去登记第一张采购单</a></div>
+</div>
+<script>
+const DATA = {"fetchedAt":"2026-11-19T13:19:29.982Z","total":3,"unshipped":0,"formUrl":"https://dxqo9m5r0ri.feishu.cn/share/base/shrcn15DGnG4CGNkyz0bZmWxwPd","tableUrl":"https://dxqo9m5r0ri.feishu.cn/base/C5zHbkq6SaocEws7zUWcsYKUnHb","orders":[{"no":"1852965585","sl":"张三","p":"义乌市新徽饰品有限公司","a":"3316598078091143491","s":"已发货","e":"","amt":120,"wh":"销售三组仓","ct":"2026-11-19 16:18:07","sku":"金色脚链定制","gid":"1852965585"},{"no":"1852965440","sl":"李四","p":"天门市依黛佳人服饰有限公司","a":"3316582023059007098","s":"已发货","e":"韵达快递 435452340125039","amt":45,"wh":"销售三组仓","ct":"2026-11-19 14:54:00","sku":"女式卫衣-卡其色S","gid":"1852965440"},{"no":"3316582023059007098","sl":"王五","p":"天门市依黛佳人服饰有限公司","a":"3316582023059007098","s":"已发货","e":"韵达快递 435452340125039","amt":45,"wh":"销售三组仓","ct":"2026-11-19 14:54:00","sku":"女式卫衣-卡其色S","gid":"1852965440"}]};
+let filter='all';
+document.getElementById('ft').textContent=new Date(DATA.fetchedAt).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'});
+document.getElementById('btnTable').href=DATA.tableUrl;
+document.getElementById('btnTable2').href=DATA.tableUrl;
+document.getElementById('btnForm').href=DATA.formUrl;
+const c={'未发货':0,'已发货':0,'未找到':0};
+DATA.orders.forEach(o=>{if(c[o.s]!==undefined)c[o.s]++});
+document.getElementById('s-total').textContent=DATA.total;
+document.getElementById('s-uns').textContent=c['未发货'];
+document.getElementById('s-shp').textContent=c['已发货'];
+document.getElementById('s-nf').textContent=c['未找到'];
+document.getElementById('s-sales').textContent=new Set(DATA.orders.map(o=>o.sl).filter(Boolean)).size;
+const tagMap={'未发货':'uns','已发货':'shp','未找到':'nf'};
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+function render(){
+  const q=document.getElementById('q').value.trim().toLowerCase();
+  const rows=DATA.orders.filter(o=>(filter==='all'||o.s===filter)&&(!q||(o.no+o.sl+o.p+o.a+o.sku+o.gid).toLowerCase().includes(q)));
+  document.getElementById('cnt').textContent='显示 '+rows.length+' 条';
+  document.getElementById('empty').style.display=DATA.total===0?'block':'none';
+  document.getElementById('tb').innerHTML=rows.map(o=>
+    '<tr class="'+(o.s==='未发货'?'uns':'')+'">'
+    +'<td><span class="tag '+(tagMap[o.s]||'')+'">'+esc(o.s)+'</span></td>'
+    +'<td>'+(o.sl?'<span class="sales">'+esc(o.sl)+'</span>':'<span class="dim">—</span>')+'</td>'
+    +'<td class="mono">'+esc(o.no)+'</td>'
+    +'<td>'+esc(o.p)+'</td>'
+    +'<td class="mono">'+(o.a?esc(o.a):'<span class="dim">—</span>')+'</td>'
+    +'<td class="mono">'+(o.amt||0).toFixed(0)+'</td>'
+    +'<td class="dim">'+esc(o.wh)+'</td>'
+    +'<td>'+esc((o.sku||'').slice(0,30))+'</td>'
+    +'<td class="dim">'+esc(o.ct)+'</td>'
+    +'<td class="dim mono">'+esc(o.e||'—')+'</td></tr>'
+  ).join('');
+}
+document.getElementById('q').addEventListener('input',render);
+document.querySelectorAll('.btn[data-f]').forEach(b=>b.addEventListener('click',()=>{
+  filter=b.dataset.f;
+  document.querySelectorAll('.btn[data-f]').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');render();
+}));
+render();
+</script>
+</body>
+</html>
